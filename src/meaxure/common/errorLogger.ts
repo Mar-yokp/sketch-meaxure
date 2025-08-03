@@ -22,6 +22,8 @@ export interface ErrorLogEntry {
 class ErrorLogger {
     private logs: ErrorLogEntry[] = [];
     private maxLogs = 1000; // Keep last 1000 log entries
+    private lastExportTime = 0;
+    private exportCooldown = 60000; // 60 seconds between automatic exports to prevent task conflicts
 
     log(level: 'ERROR' | 'WARN' | 'INFO', message: string, details?: string, layerName?: string, artboardName?: string, error?: Error) {
         const entry: ErrorLogEntry = {
@@ -47,9 +49,16 @@ class ErrorLogger {
         switch (level) {
             case 'ERROR':
                 console.error(consoleMessage, error);
+                // Automatically export logs when errors occur
+                this.autoExportLogs();
                 break;
             case 'WARN':
                 console.warn(consoleMessage);
+                // Reduced auto-export for warnings to prevent task conflicts
+                // Only export on critical Obj-C exceptions, not all symbol warnings
+                if (message.includes('Obj-C exception')) {
+                    this.autoExportLogs();
+                }
                 break;
             case 'INFO':
                 console.info(consoleMessage);
@@ -167,6 +176,27 @@ class ErrorLogger {
 
     getWarningCount(): number {
         return this.logs.filter(log => log.level === 'WARN').length;
+    }
+
+    private autoExportLogs(): void {
+        const now = Date.now();
+        
+        // Check cooldown to prevent spam exports
+        if (now - this.lastExportTime < this.exportCooldown) {
+            return;
+        }
+        
+        this.lastExportTime = now;
+        
+        // Use setTimeout to make export non-blocking and avoid "Please wait for former task to exit"
+        setTimeout(() => {
+            try {
+                // Automatically export to Desktop
+                this.exportLogsToDesktop();
+            } catch (exportError) {
+                console.error('Failed to auto-export logs:', exportError);
+            }
+        }, 100); // Small delay to avoid blocking the main plugin execution
     }
 }
 
