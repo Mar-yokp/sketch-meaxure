@@ -8,6 +8,7 @@ import { toHTMLEncode, emojiToEntities } from "../helpers/helper";
 import { getTextFragment } from "./textFragment";
 import { applyMasks, updateMaskStackBeforeLayer } from "./mask";
 import { getLayerRadius, getBordersFromStyle, getFillsFromStyle, getShadowsFromStyle, parseColor } from "../helpers/styles";
+import { errorLogger } from "../common/errorLogger";
 import { SMRect } from "../interfaces";
 import { getSlice } from "./slice";
 import { makeNote } from "./note";
@@ -44,8 +45,32 @@ function dealWithPlaceholder(p: LayerPlaceholder) {
 }
 
 function getLayerData2(artboard: Artboard, layer: Layer, data: ArtboardData, byInfluence: boolean, symbolLayer?: Layer) {
+    // Athens update compatibility: Skip problematic symbol instances to prevent Obj-C exceptions
+    if (layer.type === sketch.Types.SymbolInstance) {
+        try {
+            // Test if we can safely access symbol properties
+            const symbolInstance = layer as SymbolInstance;
+            if (!symbolInstance.master) {
+                errorLogger.warn('Skipping symbol - no master found', 'Symbol master is null or undefined', layer.name);
+                return;
+            }
+            // Test basic property access that might cause Obj-C exceptions
+            const _ = symbolInstance.master.id;
+        } catch (symbolTestError) {
+            errorLogger.warn('Skipping problematic symbol to prevent Obj-C exception', symbolTestError.message, layer.name);
+            return;
+        }
+    }
+    
     // stopwatch.tik('updateMaskStackBeforeLayer');
-    let layerRect = getSMRect(layer, artboard, byInfluence);
+    let layerRect: SMRect;
+    try {
+        layerRect = getSMRect(layer, artboard, byInfluence);
+    } catch (rectError) {
+        errorLogger.error('Failed to get rect for layer', rectError.message, layer.name, artboard.name, rectError);
+        return;
+    }
+    
     layerRect = applyMasks(layer, layerRect, artboard);
     if (!layerRect) {
         return;

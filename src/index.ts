@@ -19,6 +19,7 @@ import { sketch } from "./sketch";
 import { EdgeVertical, Edge } from "./sketch/layer/alignment";
 import { renameOldMarkers } from "./meaxure/helpers/renameOldMarkers";
 import { runScript } from "./meaxure/runScript";
+import exportLogs from "./commands/exportLogs";
 
 export function commandInit(context) { updateContext(context); return false; }
 export function commandSettings(context?) { runAndCatch(settingsPanel, context); }
@@ -47,8 +48,9 @@ export function commandClear(context?) { runAndCatch(clearAllMarks, context); }
 export function commandExport(context?) { runAndCatch(exportSpecification, context); }
 export function commandRenameOldMarkers(context?) { runAndCatch(renameOldMarkers, context); }
 export function commandRunScript(context?) { runAndCatch(runScript, context); }
-export function linkFeedback(context?) { runAndCatch(openURL, context, "https://github.com/qjebbs/sketch-meaxure/issues"); }
-export function linkHome(context?) { runAndCatch(openURL, context, "https://github.com/qjebbs/sketch-meaxure"); }
+export function commandExportLogs(context?) { runAndCatch(exportLogs, context); }
+export function linkFeedback(context?) { openURL("https://github.com/qjebbs/sketch-meaxure/issues"); }
+export function linkHome(context?) { openURL("https://github.com/qjebbs/sketch-meaxure"); }
 
 function runAndCatch(fn: Function, context, ...args) {
     try {

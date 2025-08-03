@@ -99,6 +99,12 @@
       "script": "mark_bundle.js"
     },
     {
+      "name": "Export Error Logs",
+      "identifier": "commandExportLogs",
+      "handler": "commandExportLogs",
+      "script": "mark_bundle.js"
+    },
+    {
       "name": "Feedback",
       "identifier": "linkFeedback",
       "handler": "linkFeedback",

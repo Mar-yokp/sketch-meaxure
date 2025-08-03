@@ -10,6 +10,7 @@ import { createWebviewPanel } from "../../webviewPanel";
 import { toHTMLEncode, newStopwatch, toSlug, emojiToEntities, getResourcePath } from "../helpers/helper";
 import { writeFile, buildTemplate, exportImage, exportImageToBuffer } from "./files";
 import { logger } from "../common/logger";
+import { errorLogger } from "../common/errorLogger";
 import { ExportData, ArtboardData } from "../interfaces";
 import { getLayerData } from "./layerData";
 import { clearSliceCache, getCollectedSlices } from "./slice";
@@ -105,10 +106,34 @@ export async function exportSpecification() {
             }
             // stopwatch.tik('renameIfIsMarker');
             let taskError: Error;
+            
+            // Athens update compatibility: Pre-check for problematic symbols
+            if (!(layer instanceof LayerPlaceholder) && (layer as Layer).type === sketch.Types.SymbolInstance) {
+                try {
+                    const symbolInstance = layer as SymbolInstance;
+                    // Quick safety check for symbol properties that might cause Obj-C exceptions
+                    if (!symbolInstance.master || !symbolInstance.master.id) {
+                        errorLogger.warn('Skipping symbol - invalid master', 'Symbol master is null, undefined, or has no ID', (layer as Layer).name, artboard.name);
+                        continue; // Skip this layer and continue with the next one
+                    }
+                } catch (symbolPreCheckError) {
+                    errorLogger.warn('Skipping problematic symbol during pre-check', symbolPreCheckError.message, (layer as Layer).name, artboard.name);
+                    continue; // Skip this layer and continue with the next one
+                }
+            }
+            
             // stopwatch.tik('before promise');
             await getLayerTask(artboard, layer, data.artboards[i], results.byInfluence)
                 .catch(err => taskError = err);
             if (taskError) {
+                // Athens update compatibility: Handle Obj-C exceptions more gracefully
+                if (taskError.message && taskError.message.includes('Obj-C exception')) {
+                    const layerName = (layer instanceof LayerPlaceholder) ? 'LayerPlaceholder' : (layer as Layer).name;
+                    errorLogger.error('Obj-C exception occurred, skipping layer', taskError.message, layerName, artboard.name, taskError);
+                    // Continue processing other layers instead of stopping entirely
+                    continue;
+                }
+                
                 onFinishCleanup();
                 if (!(layer instanceof LayerPlaceholder)) {
                     // select the error layer
