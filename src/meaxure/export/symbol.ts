@@ -19,14 +19,33 @@ export function getSymbol(artboard: Artboard, layer: SymbolInstance, layerData: 
 
     let masterAllLayers = master.getAllChildren();
     if (master.exportFormats.length || masterAllLayers.length < 2) return;
-    let tempInstance = layer.duplicate() as SymbolInstance;
-    // do not trigger layer re-arrange from 3rd-party plugins, e.g.: Anima
-    tempInstance.parent = artboard;
-    tempInstance.frame = layer.frame.changeBasis({ from: layer.parent as Group, to: artboard });
-    // make sure it doesn't make another duplicated flow layer
-    tempInstance.flow = undefined;
-    let tempGroup = tempInstance.detach({ recursively: false });
-    tempLayers.add(tempGroup);
+    
+    // Athens update compatibility: Add error handling for symbol operations
+    let tempInstance: SymbolInstance;
+    let tempGroup: Group;
+    
+    try {
+        tempInstance = layer.duplicate() as SymbolInstance;
+        // do not trigger layer re-arrange from 3rd-party plugins, e.g.: Anima
+        tempInstance.parent = artboard;
+        
+        // Athens update compatibility: Safe frame assignment
+        try {
+            tempInstance.frame = layer.frame.changeBasis({ from: layer.parent as Group, to: artboard });
+        } catch (frameError) {
+            // Fallback: use the original frame if changeBasis fails
+            tempInstance.frame = layer.frame;
+        }
+        
+        // make sure it doesn't make another duplicated flow layer
+        tempInstance.flow = undefined;
+        tempGroup = tempInstance.detach({ recursively: false });
+        tempLayers.add(tempGroup);
+    } catch (symbolError) {
+        // If symbol processing fails, skip this symbol and continue
+        console.warn(`Failed to process symbol "${layer.name}": ${symbolError.message}`);
+        return;
+    }
 
     let [instanceAllLayers, count] = getChildrenForExport(tempGroup);
     if (masterAllLayers.length < count) {

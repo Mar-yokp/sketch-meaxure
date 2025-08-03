@@ -138,13 +138,38 @@ function getLayerStyles(layer: Layer, layerType: SMType, layerData: LayerData) {
 }
 function getSMRect(layer: Layer, artboard: Artboard, byInfluence: boolean): SMRect {
     let layerFrame: Rectangle;
-    if (byInfluence && layer.type != sketch.Types.Text) {
-        // export the influence rect.(include the area of shadows and outside borders...)
-        layerFrame = layer.frameInfluence.changeBasis({ from: layer.parent as Group, to: artboard });
-    } else {
-        // export the default rect.
-        layerFrame = layer.frame.changeBasis({ from: layer.parent as Group, to: artboard });
+    
+    try {
+        if (byInfluence && layer.type != sketch.Types.Text) {
+            // export the influence rect.(include the area of shadows and outside borders...)
+            layerFrame = layer.frameInfluence.changeBasis({ from: layer.parent as Group, to: artboard });
+        } else {
+            // export the default rect.
+            layerFrame = layer.frame.changeBasis({ from: layer.parent as Group, to: artboard });
+        }
+    } catch (frameError) {
+        // Athens update compatibility: Fallback for frame operations that fail on symbols
+        console.warn(`Frame operation failed for layer "${layer.name}": ${frameError.message}. Using original frame.`);
+        layerFrame = layer.frame;
+        
+        // If the layer is a symbol, try to adjust coordinates relative to artboard manually
+        if (layer.type === sketch.Types.SymbolInstance) {
+            try {
+                // Simple coordinate adjustment for symbols
+                const artboardFrame = artboard.frame;
+                layerFrame = {
+                    x: layer.frame.x - artboardFrame.x,
+                    y: layer.frame.y - artboardFrame.y,
+                    width: layer.frame.width,
+                    height: layer.frame.height
+                } as Rectangle;
+            } catch (adjustError) {
+                // Final fallback: use original frame as-is
+                layerFrame = layer.frame;
+            }
+        }
     }
+    
     return {
         x: layerFrame.x,
         y: layerFrame.y,
